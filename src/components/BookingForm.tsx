@@ -32,7 +32,7 @@ export default function BookingForm() {
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState({ hora_inicio: "09:00", hora_fin: "19:00", duracion_cita: "60" });
 
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
 
   useEffect(() => {
     async function cargarConfig() {
