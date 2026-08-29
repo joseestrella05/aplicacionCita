@@ -12,9 +12,10 @@ export const citas = sqliteTable(
     estado: text("estado", { enum: ["pendiente", "completada", "cancelada"] })
       .notNull()
       .default("pendiente"),
+    // UTC. Se formatea a hora de RD al mostrar (src/lib/fechas.ts).
     creadoEn: text("creado_en")
       .notNull()
-      .default(sql`(datetime('now', 'localtime'))`),
+      .default(sql`(datetime('now'))`),
   },
   (t) => [
     // Índice parcial a propósito: una cita cancelada libera el cupo.

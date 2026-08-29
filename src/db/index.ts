@@ -15,7 +15,7 @@ await client.execute(`
     fecha TEXT NOT NULL,
     hora TEXT NOT NULL,
     estado TEXT NOT NULL DEFAULT 'pendiente',
-    creado_en TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    creado_en TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `);
 

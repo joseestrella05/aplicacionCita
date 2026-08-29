@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { minutosDelDiaEnRD } from "@/lib/fechas";
 
 export interface Horario {
   horaInicio: string;
@@ -16,7 +17,9 @@ function generarHoras(inicio: string, fin: string, duracion: number): string[] {
   let minutosActuales = hInicio * 60 + mInicio;
   const minutosFin = hFin * 60 + mFin;
 
-  while (minutosActuales <= minutosFin) {
+  // El cupo tiene que caber entero antes de cerrar: con "<= minutosFin"
+  // se generaba uno que empezaba justo a la hora de cierre.
+  while (minutosActuales + duracion <= minutosFin) {
     const h = Math.floor(minutosActuales / 60);
     const m = minutosActuales % 60;
     horas.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
@@ -26,7 +29,14 @@ function generarHoras(inicio: string, fin: string, duracion: number): string[] {
   return horas;
 }
 
-export default function BookingForm({ horario }: { horario: Horario }) {
+export default function BookingForm({
+  horario,
+  hoy,
+}: {
+  horario: Horario;
+  /** Fecha de hoy en América/Santo_Domingo, calculada en el servidor. */
+  hoy: string;
+}) {
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [fecha, setFecha] = useState("");
@@ -41,8 +51,6 @@ export default function BookingForm({ horario }: { horario: Horario }) {
     [horario]
   );
 
-  const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
-
   async function cargarHorasOcupadas(fechaSeleccionada: string) {
     try {
       const res = await fetch(`/api/disponibilidad?fecha=${fechaSeleccionada}`);
@@ -52,8 +60,7 @@ export default function BookingForm({ horario }: { horario: Horario }) {
       let horasBloqueadas = horasCitas;
 
       if (fechaSeleccionada === hoy) {
-        const ahora = new Date();
-        const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+        const minutosAhora = minutosDelDiaEnRD();
         horasBloqueadas = [
           ...horasBloqueadas,
           ...horasDisponibles.filter((h) => {

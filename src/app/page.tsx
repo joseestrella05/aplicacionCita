@@ -1,6 +1,7 @@
 import BookingForm, { type Horario } from "@/components/BookingForm";
 import { db } from "@/db";
 import { configuracion } from "@/db/schema";
+import { fechaEnRD } from "@/lib/fechas";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ async function obtenerHorario(): Promise<Horario> {
 
 export default async function Home() {
   const horario = await obtenerHorario();
+  // Se calcula en el servidor y en zona RD: el reloj del navegador del
+  // cliente no tiene por qué coincidir.
+  const hoy = fechaEnRD();
 
   return (
     <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4 py-12">
@@ -39,7 +43,7 @@ export default async function Home() {
         </div>
 
         <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-6">
-          <BookingForm horario={horario} />
+          <BookingForm horario={horario} hoy={hoy} />
         </div>
 
         <p className="text-center text-zinc-600 text-xs mt-6">

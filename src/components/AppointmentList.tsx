@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { formatearCreadoEn } from "@/lib/fechas";
 
 interface Cita {
   id: number;
@@ -13,35 +14,46 @@ interface Cita {
 }
 
 export default function AppointmentList() {
-  const [citas, setCitas] = useState<Cita[]>([]);
   const [filtro, setFiltro] = useState("pendiente");
-  const [loading, setLoading] = useState(true);
+  // Se guarda junto al filtro con el que se cargó: así `loading` se deriva
+  // y una respuesta lenta de un filtro viejo no pisa a la del filtro nuevo.
+  const [datos, setDatos] = useState<{ filtro: string; citas: Cita[] } | null>(null);
+  const [recarga, setRecarga] = useState(0);
 
-  const cargarCitas = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/citas?estado=${filtro}`);
-      const data = await res.json();
-      setCitas(data);
-    } catch {
-      setCitas([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filtro]);
+  const loading = datos === null || datos.filtro !== filtro;
+  const citas = datos?.citas ?? [];
 
   useEffect(() => {
-    setLoading(true);
-    cargarCitas();
-  }, [cargarCitas]);
+    let vigente = true;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/citas?estado=${filtro}`);
+        const data = await res.json();
+        if (vigente) setDatos({ filtro, citas: data });
+      } catch {
+        if (vigente) setDatos({ filtro, citas: [] });
+      }
+    })();
+
+    return () => {
+      vigente = false;
+    };
+  }, [filtro, recarga]);
 
   async function actualizarEstado(id: number, estado: string) {
     try {
-      await fetch("/api/citas", {
+      const res = await fetch("/api/citas", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, estado }),
       });
-      cargarCitas();
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Error al actualizar");
+        return;
+      }
+      setRecarga((n) => n + 1);
     } catch {
       alert("Error al actualizar");
     }
@@ -106,6 +118,9 @@ export default function AppointmentList() {
                       {cita.hora}
                     </span>
                   </div>
+                  <p className="text-zinc-500 text-xs mt-2">
+                    Agendada el {formatearCreadoEn(cita.creadoEn)}
+                  </p>
                 </div>
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
