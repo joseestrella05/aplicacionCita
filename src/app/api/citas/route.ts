@@ -5,12 +5,34 @@ import { eq, and, desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
+const MAX_PENDIENTES_POR_TELEFONO = 2;
+
+/**
+ * El índice único parcial `cita_unica` es lo que decide si un cupo está
+ * libre. Cuando dos reservas simultáneas llegan al mismo horario, una gana
+ * el INSERT y la otra rebota aquí.
+ */
+function esCupoOcupado(error: unknown): boolean {
+  let actual: unknown = error;
+
+  while (actual instanceof Error) {
+    const codigo = (actual as { code?: string }).code ?? "";
+    if (
+      actual.message.includes("UNIQUE constraint failed") ||
+      codigo.startsWith("SQLITE_CONSTRAINT")
+    ) {
+      return true;
+    }
+    actual = actual.cause;
+  }
+
+  return false;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const fecha = searchParams.get("fecha");
   const estado = searchParams.get("estado");
-
-  let query = db.select().from(citas);
 
   if (fecha && estado) {
     const results = await db
@@ -49,26 +71,43 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const existente = await db
-    .select()
+  const pendientes = await db
+    .select({ id: citas.id })
     .from(citas)
-    .where(and(eq(citas.fecha, fecha), eq(citas.hora, hora), eq(citas.estado, "pendiente")));
+    .where(and(eq(citas.telefono, telefono), eq(citas.estado, "pendiente")));
 
-  if (existente.length > 0) {
+  if (pendientes.length >= MAX_PENDIENTES_POR_TELEFONO) {
     return NextResponse.json(
-      { error: "Ese horario ya está ocupado" },
-      { status: 409 }
+      {
+        error: `Ya tienes ${MAX_PENDIENTES_POR_TELEFONO} citas pendientes con este teléfono. Espera a que pasen o cancela una.`,
+      },
+      { status: 429 }
     );
   }
 
-  const result = await db.insert(citas).values({
-    nombreCliente,
-    telefono,
-    fecha,
-    hora,
-  });
+  // Sin SELECT previo: el cupo lo decide el índice único, no una lectura
+  // que puede quedar obsoleta antes del INSERT.
+  try {
+    const result = await db.insert(citas).values({
+      nombreCliente,
+      telefono,
+      fecha,
+      hora,
+    });
 
-  return NextResponse.json({ id: Number(result.lastInsertRowid), message: "Cita agendada" }, { status: 201 });
+    return NextResponse.json(
+      { id: Number(result.lastInsertRowid), message: "Cita agendada" },
+      { status: 201 }
+    );
+  } catch (error) {
+    if (esCupoOcupado(error)) {
+      return NextResponse.json(
+        { error: "Ese cupo se acaba de ocupar. Elige otro." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 }
 
 export async function PATCH(request: NextRequest) {
@@ -79,7 +118,18 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "ID y estado son obligatorios" }, { status: 400 });
   }
 
-  await db.update(citas).set({ estado }).where(eq(citas.id, id));
+  // Reactivar una cita cancelada puede chocar con otra que ya tomó el cupo.
+  try {
+    await db.update(citas).set({ estado }).where(eq(citas.id, id));
+  } catch (error) {
+    if (esCupoOcupado(error)) {
+      return NextResponse.json(
+        { error: "Ese cupo se acaba de ocupar. Elige otro." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   return NextResponse.json({ message: "Cita actualizada" });
 }

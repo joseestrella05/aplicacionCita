@@ -27,6 +27,14 @@ await client.execute(`
   )
 `);
 
+// Índice parcial: bloquea dos citas en el mismo cupo, pero deja que una
+// cita cancelada lo libere.
+await client.execute(`
+  CREATE UNIQUE INDEX IF NOT EXISTS cita_unica
+    ON citas (fecha, hora)
+    WHERE estado <> 'cancelada'
+`);
+
 const existingConfig = await client.execute("SELECT COUNT(*) as count FROM configuracion");
 const count = existingConfig.rows[0]?.count as number;
 
