@@ -53,6 +53,25 @@ El formato es `scrypt:N:r:p:sal:hash`. Los parámetros viajan dentro del propio 
 
 Para cambiar la contraseña, vuelve a correr el script y reemplaza el valor de `ADMIN_PASSWORD_HASH`.
 
+## Migraciones
+
+El esquema lo gestiona `drizzle-kit`. La app **no** crea tablas al arrancar: una base nueva necesita correr las migraciones antes del primer `npm run dev`.
+
+```bash
+npm run db:migrate    # aplica las migraciones pendientes de drizzle/
+```
+
+Después de tocar `src/db/schema.ts`:
+
+```bash
+npm run db:generate   # genera el SQL del cambio en drizzle/
+npm run db:migrate    # lo aplica
+```
+
+`drizzle.config.ts` apunta a Turso si `TURSO_DATABASE_URL` empieza por `libsql:`, y a `file:local.db` si está vacía. Carga `.env.local` por su cuenta, porque drizzle-kit corre fuera de Next.
+
+La migración `0000_inicial` usa `IF NOT EXISTS` a propósito: tiene que poder correr tanto sobre una base nueva como sobre la que ya estaba en producción con sus tablas y sus datos.
+
 ## Autenticación
 
 El acceso se verifica en `src/proxy.ts`, antes de que la petición llegue a las páginas o rutas.

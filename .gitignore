@@ -44,5 +44,6 @@ next-env.d.ts
 
 # database
 *.db
-drizzle/
 local.db*
+# drizzle/ NO se ignora: las migraciones son el historial del esquema
+# y tienen que viajar con el repo.
