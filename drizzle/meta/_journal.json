@@ -15,6 +15,13 @@
       "when": 1788010042303,
       "tag": "0001_barberos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788013426988,
+      "tag": "0002_cobros",
+      "breakpoints": true
     }
   ]
 }

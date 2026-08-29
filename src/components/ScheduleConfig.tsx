@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { NOMBRES_DIAS, generarHoras } from "@/lib/horario";
+import { formatearPesos } from "@/lib/dinero";
 
 export interface PerfilHorario {
   horaInicio: string;
   horaFin: string;
   duracionCita: number;
   diasLaborales: number[];
+  precioPela: number;
 }
 
 const HORAS = Array.from({ length: 18 }, (_, i) =>
@@ -60,7 +62,27 @@ export default function ScheduleConfig({ inicial }: { inicial: PerfilHorario }) 
 
   return (
     <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 sm:p-6 mt-6">
-      <h2 className="text-lg font-semibold text-white mb-4">Tu horario</h2>
+      <h2 className="text-lg font-semibold text-white mb-4">Tu horario y tu precio</h2>
+
+      <div className="mb-5">
+        <label className="block text-sm text-zinc-400 mb-1">Precio de la pela</label>
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-400 text-sm">RD$</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={config.precioPela}
+            onChange={(e) => setConfig({ ...config, precioPela: Number(e.target.value) })}
+            className="w-32 rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+        <p className="text-zinc-500 text-xs mt-1">
+          Es el punto de partida del cobro: al completar una cita el campo viene
+          con {formatearPesos(config.precioPela)} y tú lo subes si hubo propina.
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
@@ -147,10 +169,16 @@ export default function ScheduleConfig({ inicial }: { inicial: PerfilHorario }) 
 
       <button
         onClick={guardar}
-        disabled={guardando || config.diasLaborales.length === 0 || cupos.length === 0}
+        disabled={
+          guardando ||
+          config.diasLaborales.length === 0 ||
+          cupos.length === 0 ||
+          !Number.isInteger(config.precioPela) ||
+          config.precioPela < 0
+        }
         className="mt-4 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-medium py-2 px-4 text-sm transition-all"
       >
-        {guardando ? "Guardando..." : "Guardar horario"}
+        {guardando ? "Guardando..." : "Guardar"}
       </button>
     </div>
   );

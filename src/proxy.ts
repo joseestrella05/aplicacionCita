@@ -4,7 +4,13 @@ import { COOKIE_SESION, verificarToken } from "@/lib/auth";
 // En Next.js 16 el convenio `middleware` está deprecado y se llama `proxy`.
 // Corre en el runtime de Node por defecto.
 export const config = {
-  matcher: ["/admin/:path*", "/api/citas", "/api/perfil", "/api/admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/api/citas",
+    "/api/perfil",
+    "/api/ingresos",
+    "/api/admin/:path*",
+  ],
 };
 
 function esPublica(request: NextRequest): boolean {

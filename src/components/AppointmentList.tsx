@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatearCreadoEn } from "@/lib/fechas";
+import { formatearPesos, repartir } from "@/lib/dinero";
 
 interface Cita {
   id: number;
@@ -12,6 +13,8 @@ interface Cita {
   fecha: string;
   hora: string;
   estado: string;
+  montoCobrado: number | null;
+  precioAplicado: number | null;
   creadoEn: string;
 }
 
@@ -25,13 +28,26 @@ const ESTADOS = ["pendiente", "completada", "cancelada"];
 export default function AppointmentList({
   esAdmin,
   barberos,
+  precioPela,
+  barberoId,
+  onBarberoId,
+  onCobro,
 }: {
   esAdmin: boolean;
   /** Solo se usa cuando esAdmin: permite ver todos o filtrar por uno. */
   barberos: BarberoOpcion[];
+  /** Precio con el que se prellena el campo de cobro. */
+  precioPela: number;
+  /** El filtro de barbero lo controla el panel: los ingresos miran al mismo. */
+  barberoId: string;
+  onBarberoId: (id: string) => void;
+  /** Avisa al panel para que refresque el resumen de ingresos. */
+  onCobro?: () => void;
 }) {
+  // Cita cuyo cobro se está escribiendo, y el texto del campo.
+  const [cobrando, setCobrando] = useState<number | null>(null);
+  const [monto, setMonto] = useState("");
   const [filtro, setFiltro] = useState("pendiente");
-  const [barberoId, setBarberoId] = useState("");
   // Se guarda junto a la consulta con la que se cargó: así `loading` se
   // deriva y una respuesta lenta de un filtro viejo no pisa a la del nuevo.
   const [datos, setDatos] = useState<{ clave: string; citas: Cita[] } | null>(null);
@@ -72,22 +88,42 @@ export default function AppointmentList({
     };
   }, [clave, filtro, barberoId, recarga]);
 
-  async function actualizarEstado(id: number, estado: string) {
+  async function enviar(cuerpo: Record<string, unknown>) {
     setError("");
     try {
       const res = await fetch("/api/citas", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, estado }),
+        body: JSON.stringify(cuerpo),
       });
       if (!res.ok) {
         const data = await res.json();
         setError(data.error || "Error al actualizar");
-        return;
+        return false;
       }
       setRecarga((n) => n + 1);
+      onCobro?.();
+      return true;
     } catch {
       setError("Error de conexión");
+      return false;
+    }
+  }
+
+  function abrirCobro(cita: Cita) {
+    setError("");
+    setCobrando(cita.id);
+    setMonto(String(cita.montoCobrado ?? precioPela));
+  }
+
+  async function confirmarCobro(id: number) {
+    const valor = Number(monto);
+    if (!Number.isInteger(valor) || valor < 0) {
+      setError("Escribe el monto en pesos enteros, sin centavos");
+      return;
+    }
+    if (await enviar({ id, estado: "completada", montoCobrado: valor })) {
+      setCobrando(null);
     }
   }
 
@@ -114,7 +150,7 @@ export default function AppointmentList({
           <label className="block text-sm text-zinc-400 mb-1">Barbero</label>
           <select
             value={barberoId}
-            onChange={(e) => setBarberoId(e.target.value)}
+            onChange={(e) => onBarberoId(e.target.value)}
             className="w-full sm:w-auto rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
             <option value="">Todos</option>
@@ -173,6 +209,23 @@ export default function AppointmentList({
                       Barbero: {cita.barberoNombre}
                     </p>
                   )}
+                  {cita.montoCobrado !== null && cita.precioAplicado !== null && (
+                    <p className="text-green-400 text-sm mt-2 font-medium">
+                      Cobrado {formatearPesos(cita.montoCobrado)}
+                      {repartir(cita.montoCobrado, cita.precioAplicado).propina > 0 && (
+                        <span className="text-zinc-400 font-normal">
+                          {" "}
+                          ({formatearPesos(repartir(cita.montoCobrado, cita.precioAplicado).pela)}{" "}
+                          + {formatearPesos(repartir(cita.montoCobrado, cita.precioAplicado).propina)} de propina)
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {cita.estado === "completada" && cita.montoCobrado === null && (
+                    <p className="text-yellow-400 text-xs mt-2">
+                      Sin cobro registrado
+                    </p>
+                  )}
                   <p className="text-zinc-500 text-xs mt-1">
                     Agendada el {formatearCreadoEn(cita.creadoEn)}
                   </p>
@@ -190,22 +243,74 @@ export default function AppointmentList({
                 </span>
               </div>
 
-              {cita.estado === "pendiente" && (
+              {cobrando === cita.id ? (
+                <div className="mt-4 pt-3 border-t border-zinc-700/50">
+                  <label className="block text-sm text-zinc-300 mb-1">
+                    ¿Cuánto te pagó?
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 text-sm">RD$</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={monto}
+                      onChange={(e) => setMonto(e.target.value)}
+                      autoFocus
+                      className="w-32 rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <span className="text-zinc-500 text-xs">
+                      tu precio: {formatearPesos(precioPela)}
+                    </span>
+                  </div>
+                  {Number(monto) > precioPela && (
+                    <p className="text-green-400 text-xs mt-2">
+                      {formatearPesos(precioPela)} de pela +{" "}
+                      {formatearPesos(Number(monto) - precioPela)} de propina
+                    </p>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => confirmarCobro(cita.id)}
+                      className="flex-1 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-2 transition-all"
+                    >
+                      Confirmar cobro
+                    </button>
+                    <button
+                      onClick={() => setCobrando(null)}
+                      className="flex-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium py-2 border border-zinc-700 transition-all"
+                    >
+                      Volver
+                    </button>
+                  </div>
+                </div>
+              ) : cita.estado === "pendiente" ? (
                 <div className="flex gap-2 mt-4 pt-3 border-t border-zinc-700/50">
                   <button
-                    onClick={() => actualizarEstado(cita.id, "completada")}
+                    onClick={() => abrirCobro(cita)}
                     className="flex-1 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-2 transition-all"
                   >
-                    Completar
+                    Completar y cobrar
                   </button>
                   <button
-                    onClick={() => actualizarEstado(cita.id, "cancelada")}
+                    onClick={() => enviar({ id: cita.id, estado: "cancelada" })}
                     className="flex-1 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-400 text-sm font-medium py-2 border border-red-600/30 transition-all"
                   >
                     Cancelar
                   </button>
                 </div>
-              )}
+              ) : cita.estado === "completada" ? (
+                <div className="mt-4 pt-3 border-t border-zinc-700/50">
+                  <button
+                    onClick={() => abrirCobro(cita)}
+                    className="rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium py-2 px-3 border border-zinc-700 transition-all"
+                  >
+                    {cita.montoCobrado === null ? "Registrar cobro" : "Corregir cobro"}
+                  </button>
+                </div>
+              ) : null}
+
             </div>
           ))}
         </div>

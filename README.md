@@ -13,7 +13,7 @@ Se despliega en Vercel.
 | `/` | cualquiera | Elige barbero, o "cualquiera disponible" (busca el cupo más cercano entre todos) |
 | `/b/<slug>` | cualquiera | Reserva con un barbero concreto. **Este es el link que el barbero comparte.** |
 | `/cita/<token>` | quien tenga el link | El cliente ve y cancela su propia cita, sin cuenta |
-| `/admin` | barbero con sesión | Sus citas, su horario y su link. El admin ve además a todos y gestiona barberos |
+| `/admin` | barbero con sesión | Sus citas, sus ingresos, su horario y su link. El admin ve además a todos y gestiona barberos |
 | `/admin/login` | cualquiera | Elegir barbero y poner su contraseña |
 
 El link `/b/<slug>` **no lleva el horario dentro, lo consulta**. El barbero lo
@@ -90,14 +90,43 @@ avisa mientras siga en ese estado.
 2. En **Barberos → Añadir barbero**, pon el nombre, el link (se propone solo a
    partir del nombre) y una contraseña de al menos 8 caracteres.
 3. Pásale al barbero su link `/b/<slug>` y su contraseña.
-4. El barbero entra en `/admin/login`, elige su nombre, y ajusta su horario y
-   sus días en **Tu horario**.
+4. El barbero entra en `/admin/login`, elige su nombre, y ajusta su horario, sus
+   días y el precio de su pela en **Tu horario y tu precio**.
 5. Desde su panel puede copiar su link o compartirlo por WhatsApp con un botón.
 
 El administrador también puede desactivar a un barbero (deja de aparecer en la
 portada y su link da 404, pero sus citas se conservan), reactivarlo, cambiarle
 la contraseña, o darle rol de administrador. No puede desactivarse ni quitarse
 el rol a sí mismo.
+
+## Cobros, propinas e ingresos
+
+Cada barbero pone el **precio de su pela** en su perfil. Ese precio es solo el
+punto de partida: lo que se guarda es lo que el cliente entregó de verdad.
+
+1. Al terminar una cita, el barbero toca **Completar y cobrar**.
+2. Sale un campo con el precio ya puesto: si hubo propina, lo sube.
+3. El sistema reparte solo: la pela es el precio, la propina es la diferencia.
+
+En **Lo que has ganado** salen los totales de hoy, de la semana (lunes a
+domingo) y del mes, con el desglose de los últimos 14 días. Un barbero ve lo
+suyo; el admin ve el total o el de un barbero concreto con el mismo filtro que
+usa para las citas.
+
+Detalles que importan:
+
+- Los montos se guardan en **pesos enteros**. Nada de decimales flotantes para
+  contar dinero.
+- Cada cobro guarda también el precio que tenía el barbero en ese momento
+  (`precio_aplicado`). Subir el precio más adelante **no** reescribe la propina
+  de las citas ya cobradas.
+- Si el cliente pagó menos que el precio (un descuento), la propina es cero, no
+  un número negativo.
+- Una cita completada **sin monto registrado no suma**. No se inventa un
+  ingreso que nadie apuntó. El panel avisa cuántas hay y se les puede poner el
+  monto después, desde la pestaña Completadas.
+- Los informes cuentan por la **fecha de la cita**, no por cuándo se registró
+  el cobro.
 
 ## Migraciones
 
@@ -128,6 +157,9 @@ Las migraciones existentes:
   índice único por barbero. Escrita a mano para no perder ninguna cita: añade
   las columnas nullable, las rellena y luego reconstruye la tabla para dejarlas
   `NOT NULL`. La tabla `configuracion` queda obsoleta pero no se borra.
+- `0002_cobros` — `precio_pela` en `barberos`, y `monto_cobrado` y
+  `precio_aplicado` en `citas`. Las citas ya completadas quedan sin monto a
+  propósito.
 
 ## Autenticación
 
@@ -150,7 +182,8 @@ descubierta sin avisar.
 | `GET /api/proximo-cupo` | Público — el cupo libre más cercano entre todos |
 | `GET`/`PATCH /api/cita/<token>` | Público, pero solo con el token de la cita |
 | `GET`/`PATCH /api/citas` | Sesión. Un barbero solo ve y toca las suyas; el admin, todas |
-| `GET`/`PUT /api/perfil` | Sesión. Cada barbero, lo suyo |
+| `GET`/`PUT /api/perfil` | Sesión. Cada barbero, lo suyo (horario, precio, contraseña) |
+| `GET /api/ingresos` | Sesión. Un barbero ve lo suyo; el admin, todo o filtrado |
 | `/api/admin/*` | Solo rol `admin` |
 | `/admin/*` | Sesión (menos `/admin/login`) |
 

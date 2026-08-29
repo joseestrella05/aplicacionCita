@@ -6,6 +6,7 @@ import { sesionActual } from "@/lib/sesion";
 import { generarHoras, esDiaLaboral, parsearDias } from "@/lib/horario";
 import { fechaEnRD, minutosDelDiaEnRD } from "@/lib/fechas";
 import { generarToken } from "@/lib/token";
+import { montoValido, MONTO_MAXIMO } from "@/lib/dinero";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,8 @@ export async function GET(request: NextRequest) {
       fecha: citas.fecha,
       hora: citas.hora,
       estado: citas.estado,
+      montoCobrado: citas.montoCobrado,
+      precioAplicado: citas.precioAplicado,
       creadoEn: citas.creadoEn,
     })
     .from(citas)
@@ -209,13 +212,31 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { id, estado } = body;
+  const { id, estado, montoCobrado } = body;
 
-  if (!id || !estado || !(ESTADOS as readonly string[]).includes(estado)) {
-    return NextResponse.json({ error: "ID y estado son obligatorios" }, { status: 400 });
+  if (!id) {
+    return NextResponse.json({ error: "Falta el ID de la cita" }, { status: 400 });
   }
 
-  const [cita] = await db.select().from(citas).where(eq(citas.id, id));
+  if (estado !== undefined && !(ESTADOS as readonly string[]).includes(estado)) {
+    return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
+  }
+
+  if (estado === undefined && montoCobrado === undefined) {
+    return NextResponse.json({ error: "No hay nada que actualizar" }, { status: 400 });
+  }
+
+  const [cita] = await db
+    .select({
+      id: citas.id,
+      barberoId: citas.barberoId,
+      estado: citas.estado,
+      precioAplicado: citas.precioAplicado,
+      precioPela: barberos.precioPela,
+    })
+    .from(citas)
+    .innerJoin(barberos, eq(citas.barberoId, barberos.id))
+    .where(eq(citas.id, id));
 
   if (!cita) {
     return NextResponse.json({ error: "Esa cita no existe" }, { status: 404 });
@@ -226,12 +247,44 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Esa cita no es tuya" }, { status: 403 });
   }
 
+  const cambios: Partial<typeof citas.$inferInsert> = {};
+
+  if (estado !== undefined) {
+    cambios.estado = estado as Estado;
+  }
+
+  if (montoCobrado !== undefined) {
+    const estadoFinal = (estado ?? cita.estado) as Estado;
+
+    if (estadoFinal !== "completada") {
+      return NextResponse.json(
+        { error: "Solo se registra el cobro al completar una cita" },
+        { status: 400 }
+      );
+    }
+
+    if (montoCobrado === null) {
+      // Borrar el cobro registrado, por si se metió mal.
+      cambios.montoCobrado = null;
+      cambios.precioAplicado = null;
+    } else {
+      if (!montoValido(montoCobrado)) {
+        return NextResponse.json(
+          { error: `El monto debe ser un número entero de pesos entre 0 y ${MONTO_MAXIMO}` },
+          { status: 400 }
+        );
+      }
+
+      cambios.montoCobrado = montoCobrado;
+      // El precio se congela en el primer cobro: subirlo después no debe
+      // reescribir la propina de las citas ya cobradas.
+      cambios.precioAplicado = cita.precioAplicado ?? cita.precioPela;
+    }
+  }
+
   // Reactivar una cita cancelada puede chocar con otra que ya tomó el cupo.
   try {
-    await db
-      .update(citas)
-      .set({ estado: estado as Estado })
-      .where(eq(citas.id, id));
+    await db.update(citas).set(cambios).where(eq(citas.id, id));
   } catch (error) {
     if (esCupoOcupado(error)) {
       return NextResponse.json(

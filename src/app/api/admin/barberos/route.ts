@@ -42,6 +42,7 @@ export async function GET() {
       horaInicio: b.horaInicio,
       horaFin: b.horaFin,
       duracionCita: b.duracionCita,
+      precioPela: b.precioPela,
       diasLaborales: parsearDias(b.diasLaborales),
       tienePassword: b.passwordHash !== "",
     }))

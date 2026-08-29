@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { barberoEnSesion } from "@/lib/sesion";
 import { hashearPassword } from "@/lib/password";
 import { generarHoras, parsearDias } from "@/lib/horario";
+import { montoValido, MONTO_MAXIMO } from "@/lib/dinero";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function GET() {
     horaInicio: barbero.horaInicio,
     horaFin: barbero.horaFin,
     duracionCita: barbero.duracionCita,
+    precioPela: barbero.precioPela,
     diasLaborales: parsearDias(barbero.diasLaborales),
     tienePassword: barbero.passwordHash !== "",
   });
@@ -40,7 +42,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { horaInicio, horaFin, duracionCita, diasLaborales, password } = body;
+  const { horaInicio, horaFin, duracionCita, diasLaborales, precioPela, password } = body;
 
   const cambios: Record<string, unknown> = {};
 
@@ -77,6 +79,16 @@ export async function PUT(request: NextRequest) {
     }
 
     cambios.diasLaborales = [...new Set(dias)].sort().join(",");
+  }
+
+  if (precioPela !== undefined) {
+    if (!montoValido(precioPela)) {
+      return NextResponse.json(
+        { error: `El precio debe ser un número entero de pesos entre 0 y ${MONTO_MAXIMO}` },
+        { status: 400 }
+      );
+    }
+    cambios.precioPela = precioPela;
   }
 
   if (password !== undefined) {

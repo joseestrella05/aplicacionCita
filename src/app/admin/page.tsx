@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import AppointmentList from "@/components/AppointmentList";
+import PanelCitas from "@/components/PanelCitas";
 import ScheduleConfig from "@/components/ScheduleConfig";
 import BarberosAdmin from "@/components/BarberosAdmin";
 import EnlacePublico from "@/components/EnlacePublico";
@@ -62,9 +62,11 @@ export default async function AdminPage() {
 
         <EnlacePublico nombre={yo.nombre} enlace={enlacePublico} />
 
-        <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 sm:p-6">
-          <AppointmentList esAdmin={esAdmin} barberos={opciones} />
-        </div>
+        <PanelCitas
+          esAdmin={esAdmin}
+          barberos={opciones}
+          precioPela={yo.precioPela}
+        />
 
         <ScheduleConfig
           inicial={{
@@ -72,6 +74,7 @@ export default async function AdminPage() {
             horaFin: yo.horaFin,
             duracionCita: yo.duracionCita,
             diasLaborales: parsearDias(yo.diasLaborales),
+            precioPela: yo.precioPela,
           }}
         />
 

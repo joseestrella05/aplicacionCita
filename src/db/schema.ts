@@ -10,6 +10,8 @@ export const barberos = sqliteTable("barberos", {
   horaInicio: text("hora_inicio").notNull().default("09:00"),
   horaFin: text("hora_fin").notNull().default("19:00"),
   duracionCita: integer("duracion_cita").notNull().default(60),
+  /** Precio de la pela en pesos enteros. Es solo el punto de partida del cobro. */
+  precioPela: integer("precio_pela").notNull().default(500),
   /** Días de la semana en los que trabaja, 0=domingo … 6=sábado. */
   diasLaborales: text("dias_laborales").notNull().default("1,2,3,4,5,6"),
   rol: text("rol", { enum: ["barbero", "admin"] })
@@ -34,6 +36,17 @@ export const citas = sqliteTable(
       .default("pendiente"),
     /** Permite al cliente ver y cancelar su propia cita sin cuenta. */
     token: text("token").notNull().unique(),
+    /**
+     * Lo que el cliente entregó de verdad, en pesos enteros. Null mientras la
+     * cita no se haya cobrado.
+     */
+    montoCobrado: integer("monto_cobrado"),
+    /**
+     * El precio de la pela que tenía el barbero en el momento del cobro. Se
+     * guarda para que subir el precio más adelante no reescriba el historial:
+     * la propina de una cita vieja se sigue calculando contra el precio viejo.
+     */
+    precioAplicado: integer("precio_aplicado"),
     // UTC. Se formatea a hora de RD al mostrar (src/lib/fechas.ts).
     creadoEn: text("creado_en")
       .notNull()
