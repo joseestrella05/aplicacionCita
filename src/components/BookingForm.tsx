@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+
+export interface Horario {
+  horaInicio: string;
+  horaFin: string;
+  duracionCita: number;
+}
 
 function generarHoras(inicio: string, fin: string, duracion: number): string[] {
   const horas: string[] = [];
@@ -20,54 +26,28 @@ function generarHoras(inicio: string, fin: string, duracion: number): string[] {
   return horas;
 }
 
-export default function BookingForm() {
+export default function BookingForm({ horario }: { horario: Horario }) {
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
-  const [horasDisponibles, setHorasDisponibles] = useState<string[]>([]);
   const [horasOcupadas, setHorasOcupadas] = useState<string[]>([]);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [config, setConfig] = useState({ hora_inicio: "09:00", hora_fin: "19:00", duracion_cita: "60" });
+
+  const horasDisponibles = useMemo(
+    () => generarHoras(horario.horaInicio, horario.horaFin, horario.duracionCita),
+    [horario]
+  );
 
   const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
 
-  useEffect(() => {
-    async function cargarConfig() {
-      try {
-        const res = await fetch("/api/configuracion");
-        const data = await res.json();
-        setConfig({
-          hora_inicio: data.hora_inicio || "09:00",
-          hora_fin: data.hora_fin || "19:00",
-          duracion_cita: data.duracion_cita || "60",
-        });
-      } catch {
-        // usar defaults
-      }
-    }
-    cargarConfig();
-  }, []);
-
-  useEffect(() => {
-    const horas = generarHoras(config.hora_inicio, config.hora_fin, parseInt(config.duracion_cita));
-    setHorasDisponibles(horas);
-  }, [config]);
-
   async function cargarHorasOcupadas(fechaSeleccionada: string) {
     try {
-      const [resPend, resComp] = await Promise.all([
-        fetch(`/api/citas?fecha=${fechaSeleccionada}&estado=pendiente`),
-        fetch(`/api/citas?fecha=${fechaSeleccionada}&estado=completada`),
-      ]);
-      const pendientes = await resPend.json();
-      const completadas = await resComp.json();
-      const horasCitas = [
-        ...pendientes.map((c: { hora: string }) => c.hora),
-        ...completadas.map((c: { hora: string }) => c.hora),
-      ];
+      const res = await fetch(`/api/disponibilidad?fecha=${fechaSeleccionada}`);
+      if (!res.ok) throw new Error("No se pudo consultar la disponibilidad");
+      const horasCitas: string[] = await res.json();
 
       let horasBloqueadas = horasCitas;
 

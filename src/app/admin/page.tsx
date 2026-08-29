@@ -1,42 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppointmentList from "@/components/AppointmentList";
 import ScheduleConfig from "@/components/ScheduleConfig";
 
+// El acceso se verifica en src/proxy.ts antes de que esta página se renderice.
 export default function AdminPage() {
-  const [auth, setAuth] = useState<boolean | null>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    async function check() {
-      try {
-        const res = await fetch("/api/auth");
-        const data = await res.json();
-        if (data.authenticated) {
-          setAuth(true);
-        } else {
-          router.push("/admin/login");
-        }
-      } catch {
-        router.push("/admin/login");
-      }
-    }
-    check();
-  }, [router]);
 
   async function handleLogout() {
     await fetch("/api/auth", { method: "DELETE" });
     router.push("/admin/login");
-  }
-
-  if (auth === null) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
-      </div>
-    );
   }
 
   return (

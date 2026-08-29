@@ -1,6 +1,26 @@
-import BookingForm from "@/components/BookingForm";
+import BookingForm, { type Horario } from "@/components/BookingForm";
+import { db } from "@/db";
+import { configuracion } from "@/db/schema";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+async function obtenerHorario(): Promise<Horario> {
+  const filas = await db.select().from(configuracion);
+  const valores: Record<string, string> = {};
+  filas.forEach((fila) => {
+    valores[fila.clave] = fila.valor;
+  });
+
+  return {
+    horaInicio: valores.hora_inicio || "09:00",
+    horaFin: valores.hora_fin || "19:00",
+    duracionCita: Number(valores.duracion_cita) || 60,
+  };
+}
+
+export default async function Home() {
+  const horario = await obtenerHorario();
+
   return (
     <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
@@ -19,7 +39,7 @@ export default function Home() {
         </div>
 
         <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-6">
-          <BookingForm />
+          <BookingForm horario={horario} />
         </div>
 
         <p className="text-center text-zinc-600 text-xs mt-6">
