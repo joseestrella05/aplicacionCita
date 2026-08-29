@@ -4,7 +4,7 @@ import { COOKIE_SESION, verificarToken } from "@/lib/auth";
 // En Next.js 16 el convenio `middleware` está deprecado y se llama `proxy`.
 // Corre en el runtime de Node por defecto.
 export const config = {
-  matcher: ["/admin/:path*", "/api/citas", "/api/configuracion"],
+  matcher: ["/admin/:path*", "/api/citas", "/api/perfil", "/api/admin/:path*"],
 };
 
 function esPublica(request: NextRequest): boolean {
@@ -26,7 +26,16 @@ export async function proxy(request: NextRequest) {
     request.cookies.get(COOKIE_SESION)?.value
   );
 
-  if (sesion) return NextResponse.next();
+  // El proxy solo comprueba que haya sesión válida. Que el barbero pueda
+  // tocar *ese* recurso lo verifica cada handler contra la base, porque el
+  // proxy no debería hacer consultas y un cambio de matcher podría dejar
+  // una ruta descubierta sin avisar.
+  if (sesion) {
+    if (request.nextUrl.pathname.startsWith("/api/admin/") && sesion.rol !== "admin") {
+      return NextResponse.json({ error: "Solo para el administrador" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
 
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });

@@ -5,6 +5,8 @@ import { formatearCreadoEn } from "@/lib/fechas";
 
 interface Cita {
   id: number;
+  barberoId: number;
+  barberoNombre: string;
   nombreCliente: string;
   telefono: string;
   fecha: string;
@@ -13,14 +15,31 @@ interface Cita {
   creadoEn: string;
 }
 
-export default function AppointmentList() {
-  const [filtro, setFiltro] = useState("pendiente");
-  // Se guarda junto al filtro con el que se cargó: así `loading` se deriva
-  // y una respuesta lenta de un filtro viejo no pisa a la del filtro nuevo.
-  const [datos, setDatos] = useState<{ filtro: string; citas: Cita[] } | null>(null);
-  const [recarga, setRecarga] = useState(0);
+interface BarberoOpcion {
+  id: number;
+  nombre: string;
+}
 
-  const loading = datos === null || datos.filtro !== filtro;
+const ESTADOS = ["pendiente", "completada", "cancelada"];
+
+export default function AppointmentList({
+  esAdmin,
+  barberos,
+}: {
+  esAdmin: boolean;
+  /** Solo se usa cuando esAdmin: permite ver todos o filtrar por uno. */
+  barberos: BarberoOpcion[];
+}) {
+  const [filtro, setFiltro] = useState("pendiente");
+  const [barberoId, setBarberoId] = useState("");
+  // Se guarda junto a la consulta con la que se cargó: así `loading` se
+  // deriva y una respuesta lenta de un filtro viejo no pisa a la del nuevo.
+  const [datos, setDatos] = useState<{ clave: string; citas: Cita[] } | null>(null);
+  const [recarga, setRecarga] = useState(0);
+  const [error, setError] = useState("");
+
+  const clave = `${filtro}|${barberoId}`;
+  const loading = datos === null || datos.clave !== clave;
   const citas = datos?.citas ?? [];
 
   useEffect(() => {
@@ -28,20 +47,33 @@ export default function AppointmentList() {
 
     (async () => {
       try {
-        const res = await fetch(`/api/citas?estado=${filtro}`);
+        const query = new URLSearchParams({ estado: filtro });
+        if (barberoId) query.set("barberoId", barberoId);
+
+        const res = await fetch(`/api/citas?${query}`);
         const data = await res.json();
-        if (vigente) setDatos({ filtro, citas: data });
+        if (!vigente) return;
+
+        if (!res.ok) {
+          setError(data.error || "No se pudieron cargar las citas");
+          setDatos({ clave, citas: [] });
+          return;
+        }
+
+        setError("");
+        setDatos({ clave, citas: data });
       } catch {
-        if (vigente) setDatos({ filtro, citas: [] });
+        if (vigente) setDatos({ clave, citas: [] });
       }
     })();
 
     return () => {
       vigente = false;
     };
-  }, [filtro, recarga]);
+  }, [clave, filtro, barberoId, recarga]);
 
   async function actualizarEstado(id: number, estado: string) {
+    setError("");
     try {
       const res = await fetch("/api/citas", {
         method: "PATCH",
@@ -50,27 +82,19 @@ export default function AppointmentList() {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || "Error al actualizar");
+        setError(data.error || "Error al actualizar");
         return;
       }
       setRecarga((n) => n + 1);
     } catch {
-      alert("Error al actualizar");
+      setError("Error de conexión");
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
-      </div>
-    );
   }
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mb-6">
-        {["pendiente", "completada", "cancelada"].map((estado) => (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {ESTADOS.map((estado) => (
           <button
             key={estado}
             onClick={() => setFiltro(estado)}
@@ -85,7 +109,33 @@ export default function AppointmentList() {
         ))}
       </div>
 
-      {citas.length === 0 ? (
+      {esAdmin && (
+        <div className="mb-6">
+          <label className="block text-sm text-zinc-400 mb-1">Barbero</label>
+          <select
+            value={barberoId}
+            onChange={(e) => setBarberoId(e.target.value)}
+            className="w-full sm:w-auto rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="">Todos</option>
+            {barberos.map((b) => (
+              <option key={b.id} value={b.id}>{b.nombre}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-2 text-red-400 text-sm mb-4">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+        </div>
+      ) : citas.length === 0 ? (
         <div className="text-center py-12 text-zinc-500">
           No hay citas {filtro}s
         </div>
@@ -118,7 +168,12 @@ export default function AppointmentList() {
                       {cita.hora}
                     </span>
                   </div>
-                  <p className="text-zinc-500 text-xs mt-2">
+                  {esAdmin && (
+                    <p className="text-zinc-400 text-xs mt-2">
+                      Barbero: {cita.barberoNombre}
+                    </p>
+                  )}
+                  <p className="text-zinc-500 text-xs mt-1">
                     Agendada el {formatearCreadoEn(cita.creadoEn)}
                   </p>
                 </div>

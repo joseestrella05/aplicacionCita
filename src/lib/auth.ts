@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import type { Rol } from "@/db/schema";
 
 export const COOKIE_SESION = "admin_token";
 export const DURACION_SESION_SEGUNDOS = 60 * 60 * 24 * 7;
@@ -13,15 +14,16 @@ function leerVariable(nombre: string): string {
   return valor;
 }
 
-// Se evalúa al importar el módulo: si falta una variable, la app no arranca.
+// Se evalúa al importar el módulo: si falta la variable, la app no arranca.
 const JWT_SECRET = new TextEncoder().encode(leerVariable("JWT_SECRET"));
 
-export interface SesionAdmin {
-  role: "admin";
+export interface Sesion {
+  barberoId: number;
+  rol: Rol;
 }
 
-export async function firmarToken(): Promise<string> {
-  return new SignJWT({ role: "admin" })
+export async function firmarToken(sesion: Sesion): Promise<string> {
+  return new SignJWT({ barberoId: sesion.barberoId, rol: sesion.rol })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
@@ -30,13 +32,18 @@ export async function firmarToken(): Promise<string> {
 
 export async function verificarToken(
   token: string | undefined
-): Promise<SesionAdmin | null> {
+): Promise<Sesion | null> {
   if (!token) return null;
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    if (payload.role !== "admin") return null;
-    return { role: "admin" };
+    const barberoId = payload.barberoId;
+    const rol = payload.rol;
+
+    if (typeof barberoId !== "number") return null;
+    if (rol !== "barbero" && rol !== "admin") return null;
+
+    return { barberoId, rol };
   } catch {
     return null;
   }

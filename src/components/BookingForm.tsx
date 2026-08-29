@@ -1,38 +1,21 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { minutosDelDiaEnRD } from "@/lib/fechas";
-
-export interface Horario {
-  horaInicio: string;
-  horaFin: string;
-  duracionCita: number;
-}
-
-function generarHoras(inicio: string, fin: string, duracion: number): string[] {
-  const horas: string[] = [];
-  const [hInicio, mInicio] = inicio.split(":").map(Number);
-  const [hFin, mFin] = fin.split(":").map(Number);
-
-  let minutosActuales = hInicio * 60 + mInicio;
-  const minutosFin = hFin * 60 + mFin;
-
-  // El cupo tiene que caber entero antes de cerrar: con "<= minutosFin"
-  // se generaba uno que empezaba justo a la hora de cierre.
-  while (minutosActuales + duracion <= minutosFin) {
-    const h = Math.floor(minutosActuales / 60);
-    const m = minutosActuales % 60;
-    horas.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    minutosActuales += duracion;
-  }
-
-  return horas;
-}
+import {
+  generarHoras,
+  esDiaLaboral,
+  NOMBRES_DIAS,
+  type Horario,
+} from "@/lib/horario";
 
 export default function BookingForm({
+  barbero,
   horario,
   hoy,
 }: {
+  barbero: { nombre: string; slug: string };
   horario: Horario;
   /** Fecha de hoy en América/Santo_Domingo, calculada en el servidor. */
   hoy: string;
@@ -42,7 +25,7 @@ export default function BookingForm({
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [horasOcupadas, setHorasOcupadas] = useState<string[]>([]);
-  const [mensaje, setMensaje] = useState("");
+  const [tokenCita, setTokenCita] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -51,9 +34,17 @@ export default function BookingForm({
     [horario]
   );
 
+  const diaNoLaboral = fecha !== "" && !esDiaLaboral(fecha, horario.diasLaborales);
+
+  const diasQueTrabaja = horario.diasLaborales
+    .map((d) => NOMBRES_DIAS[d])
+    .join(", ");
+
   async function cargarHorasOcupadas(fechaSeleccionada: string) {
     try {
-      const res = await fetch(`/api/disponibilidad?fecha=${fechaSeleccionada}`);
+      const res = await fetch(
+        `/api/disponibilidad?barbero=${encodeURIComponent(barbero.slug)}&fecha=${fechaSeleccionada}`
+      );
       if (!res.ok) throw new Error("No se pudo consultar la disponibilidad");
       const horasCitas: string[] = await res.json();
 
@@ -81,31 +72,37 @@ export default function BookingForm({
     setFecha(nuevaFecha);
     setHora("");
     setError("");
-    setMensaje("");
+    setTokenCita("");
     if (nuevaFecha) await cargarHorasOcupadas(nuevaFecha);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setMensaje("");
     setLoading(true);
 
     try {
       const res = await fetch("/api/citas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombreCliente: nombre, telefono, fecha, hora }),
+        body: JSON.stringify({
+          barberoSlug: barbero.slug,
+          nombreCliente: nombre,
+          telefono,
+          fecha,
+          hora,
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         setError(data.error || "Error al agendar");
+        if (res.status === 409 && fecha) await cargarHorasOcupadas(fecha);
         return;
       }
 
-      setMensaje("Cita agendada con éxito. Te esperamos!");
+      setTokenCita(data.token);
       setNombre("");
       setTelefono("");
       setFecha("");
@@ -116,6 +113,40 @@ export default function BookingForm({
     } finally {
       setLoading(false);
     }
+  }
+
+  if (tokenCita) {
+    return (
+      <div className="text-center space-y-4">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-500/10">
+          <svg className="w-7 h-7 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-white font-semibold">Cita agendada con {barbero.nombre}</p>
+          <p className="text-zinc-400 text-sm mt-1">Te esperamos.</p>
+        </div>
+        <div className="rounded-lg bg-zinc-800 border border-zinc-700 p-4 text-left">
+          <p className="text-zinc-400 text-xs mb-2">
+            Guarda este enlace para ver o cancelar tu cita:
+          </p>
+          <Link
+            href={`/cita/${tokenCita}`}
+            className="text-amber-400 text-sm break-all hover:text-amber-300 transition-colors"
+          >
+            Ver mi cita
+          </Link>
+        </div>
+        <button
+          type="button"
+          onClick={() => setTokenCita("")}
+          className="text-zinc-500 text-sm hover:text-zinc-400 transition-colors"
+        >
+          Agendar otra
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -160,9 +191,16 @@ export default function BookingForm({
           required
           className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
         />
+        <p className="text-zinc-500 text-xs mt-1">Trabaja: {diasQueTrabaja}</p>
       </div>
 
-      {fecha && (
+      {diaNoLaboral && (
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-amber-400 text-sm">
+          {barbero.nombre} no trabaja ese día. Elige otra fecha.
+        </div>
+      )}
+
+      {fecha && !diaNoLaboral && (
         <div>
           <label className="block text-sm font-medium text-zinc-300 mb-2">
             Hora disponible
@@ -189,6 +227,11 @@ export default function BookingForm({
               );
             })}
           </div>
+          {horasDisponibles.every((h) => horasOcupadas.includes(h)) && (
+            <p className="text-zinc-500 text-sm mt-3">
+              No queda ningún cupo libre ese día.
+            </p>
+          )}
         </div>
       )}
 
@@ -198,15 +241,9 @@ export default function BookingForm({
         </div>
       )}
 
-      {mensaje && (
-        <div className="rounded-lg bg-green-500/10 border border-green-500/30 px-4 py-3 text-green-400 text-sm">
-          {mensaje}
-        </div>
-      )}
-
       <button
         type="submit"
-        disabled={!hora || loading}
+        disabled={!hora || loading || diaNoLaboral}
         className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-bold py-3 px-4 transition-all"
       >
         {loading ? "Agendando..." : "Agendar Cita"}

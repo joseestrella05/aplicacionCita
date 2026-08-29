@@ -1,14 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+interface BarberoOpcion {
+  id: number;
+  nombre: string;
+  slug: string;
+}
+
 export default function LoginPage() {
+  const [barberos, setBarberos] = useState<BarberoOpcion[] | null>(null);
+  const [slug, setSlug] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    let vigente = true;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/barberos");
+        const data: BarberoOpcion[] = await res.json();
+        if (!vigente) return;
+        setBarberos(data);
+        if (data.length > 0) setSlug(data[0].slug);
+      } catch {
+        if (vigente) setBarberos([]);
+      }
+    })();
+
+    return () => {
+      vigente = false;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,11 +47,12 @@ export default function LoginPage() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ slug, password }),
       });
 
       if (res.ok) {
         router.push("/admin");
+        router.refresh();
       } else {
         const data = await res.json();
         setError(data.error || "Error al iniciar sesión");
@@ -44,12 +73,29 @@ export default function LoginPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">Panel Admin</h1>
-          <p className="text-zinc-400 mt-1 text-sm">Ingresa tu contraseña</p>
+          <h1 className="text-2xl font-bold text-white">Entrar</h1>
+          <p className="text-zinc-400 mt-1 text-sm">Elige tu nombre y pon tu contraseña</p>
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-2xl bg-zinc-900 border border-zinc-800 p-6 space-y-4">
           <div>
+            <label className="block text-sm text-zinc-400 mb-1">Barbero</label>
+            <select
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              required
+              disabled={barberos === null}
+              className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {barberos === null && <option value="">Cargando...</option>}
+              {barberos?.map((b) => (
+                <option key={b.id} value={b.slug}>{b.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">Contraseña</label>
             <input
               type="password"
               value={password}
@@ -68,7 +114,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !slug}
             className="w-full rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 text-black font-bold py-3 transition-all"
           >
             {loading ? "Ingresando..." : "Ingresar"}
