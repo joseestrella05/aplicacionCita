@@ -6,8 +6,6 @@ import { formatearPesos, repartir } from "@/lib/dinero";
 
 interface Cita {
   id: number;
-  barberoId: number;
-  barberoNombre: string;
   nombreCliente: string;
   telefono: string;
   fecha: string;
@@ -18,29 +16,15 @@ interface Cita {
   creadoEn: string;
 }
 
-interface BarberoOpcion {
-  id: number;
-  nombre: string;
-}
-
 const ESTADOS = ["pendiente", "completada", "cancelada"];
 
+// Solo muestra las citas del barbero en sesión: la API no devuelve otras.
 export default function AppointmentList({
-  esAdmin,
-  barberos,
   precioPela,
-  barberoId,
-  onBarberoId,
   onCobro,
 }: {
-  esAdmin: boolean;
-  /** Solo se usa cuando esAdmin: permite ver todos o filtrar por uno. */
-  barberos: BarberoOpcion[];
   /** Precio con el que se prellena el campo de cobro. */
   precioPela: number;
-  /** El filtro de barbero lo controla el panel: los ingresos miran al mismo. */
-  barberoId: string;
-  onBarberoId: (id: string) => void;
   /** Avisa al panel para que refresque el resumen de ingresos. */
   onCobro?: () => void;
 }) {
@@ -50,12 +34,11 @@ export default function AppointmentList({
   const [filtro, setFiltro] = useState("pendiente");
   // Se guarda junto a la consulta con la que se cargó: así `loading` se
   // deriva y una respuesta lenta de un filtro viejo no pisa a la del nuevo.
-  const [datos, setDatos] = useState<{ clave: string; citas: Cita[] } | null>(null);
+  const [datos, setDatos] = useState<{ filtro: string; citas: Cita[] } | null>(null);
   const [recarga, setRecarga] = useState(0);
   const [error, setError] = useState("");
 
-  const clave = `${filtro}|${barberoId}`;
-  const loading = datos === null || datos.clave !== clave;
+  const loading = datos === null || datos.filtro !== filtro;
   const citas = datos?.citas ?? [];
 
   useEffect(() => {
@@ -63,30 +46,27 @@ export default function AppointmentList({
 
     (async () => {
       try {
-        const query = new URLSearchParams({ estado: filtro });
-        if (barberoId) query.set("barberoId", barberoId);
-
-        const res = await fetch(`/api/citas?${query}`);
+        const res = await fetch(`/api/citas?estado=${filtro}`);
         const data = await res.json();
         if (!vigente) return;
 
         if (!res.ok) {
           setError(data.error || "No se pudieron cargar las citas");
-          setDatos({ clave, citas: [] });
+          setDatos({ filtro, citas: [] });
           return;
         }
 
         setError("");
-        setDatos({ clave, citas: data });
+        setDatos({ filtro, citas: data });
       } catch {
-        if (vigente) setDatos({ clave, citas: [] });
+        if (vigente) setDatos({ filtro, citas: [] });
       }
     })();
 
     return () => {
       vigente = false;
     };
-  }, [clave, filtro, barberoId, recarga]);
+  }, [filtro, recarga]);
 
   async function enviar(cuerpo: Record<string, unknown>) {
     setError("");
@@ -145,22 +125,6 @@ export default function AppointmentList({
         ))}
       </div>
 
-      {esAdmin && (
-        <div className="mb-6">
-          <label className="block text-sm text-zinc-400 mb-1">Barbero</label>
-          <select
-            value={barberoId}
-            onChange={(e) => onBarberoId(e.target.value)}
-            className="w-full sm:w-auto rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-          >
-            <option value="">Todos</option>
-            {barberos.map((b) => (
-              <option key={b.id} value={b.id}>{b.nombre}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {error && (
         <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-2 text-red-400 text-sm mb-4">
           {error}
@@ -204,11 +168,6 @@ export default function AppointmentList({
                       {cita.hora}
                     </span>
                   </div>
-                  {esAdmin && (
-                    <p className="text-zinc-400 text-xs mt-2">
-                      Barbero: {cita.barberoNombre}
-                    </p>
-                  )}
                   {cita.montoCobrado !== null && cita.precioAplicado !== null && (
                     <p className="text-green-400 text-sm mt-2 font-medium">
                       Cobrado {formatearPesos(cita.montoCobrado)}

@@ -13,7 +13,7 @@ Se despliega en Vercel.
 | `/` | cualquiera | Elige barbero, o "cualquiera disponible" (busca el cupo más cercano entre todos) |
 | `/b/<slug>` | cualquiera | Reserva con un barbero concreto. **Este es el link que el barbero comparte.** |
 | `/cita/<token>` | quien tenga el link | El cliente ve y cancela su propia cita, sin cuenta |
-| `/admin` | barbero con sesión | Sus citas, sus ingresos, su horario y su link. El admin ve además a todos y gestiona barberos |
+| `/admin` | barbero con sesión | Sus citas, sus ingresos, su horario y su link. El admin gestiona además los barberos |
 | `/admin/login` | cualquiera | Elegir barbero y poner su contraseña |
 
 El link `/b/<slug>` **no lleva el horario dentro, lo consulta**. El barbero lo
@@ -99,6 +99,10 @@ portada y su link da 404, pero sus citas se conservan), reactivarlo, cambiarle
 la contraseña, o darle rol de administrador. No puede desactivarse ni quitarse
 el rol a sí mismo.
 
+Lo que un administrador **no** puede hacer: ver las citas de otro barbero, ver
+lo que otro barbero factura, ni completar o cancelar una cita ajena. Eso es de
+cada quien.
+
 ## Cobros, propinas e ingresos
 
 Cada barbero pone el **precio de su pela** en su perfil. Ese precio es solo el
@@ -109,9 +113,12 @@ punto de partida: lo que se guarda es lo que el cliente entregó de verdad.
 3. El sistema reparte solo: la pela es el precio, la propina es la diferencia.
 
 En **Lo que has ganado** salen los totales de hoy, de la semana (lunes a
-domingo) y del mes, con el desglose de los últimos 14 días. Un barbero ve lo
-suyo; el admin ve el total o el de un barbero concreto con el mismo filtro que
-usa para las citas.
+domingo) y del mes, con el desglose de los últimos 14 días.
+
+**Cada barbero ve solo lo suyo, sin excepción.** Ser admin no da acceso al
+dinero de nadie más. Lo mismo con las citas: un admin no ve ni toca la agenda
+de otro barbero. El rol `admin` sirve para una sola cosa, dar de alta y
+gestionar barberos.
 
 Detalles que importan:
 
@@ -181,10 +188,10 @@ descubierta sin avisar.
 | `GET /api/disponibilidad?barbero=&fecha=` | Público — solo las horas ocupadas, sin datos de clientes |
 | `GET /api/proximo-cupo` | Público — el cupo libre más cercano entre todos |
 | `GET`/`PATCH /api/cita/<token>` | Público, pero solo con el token de la cita |
-| `GET`/`PATCH /api/citas` | Sesión. Un barbero solo ve y toca las suyas; el admin, todas |
+| `GET`/`PATCH /api/citas` | Sesión. Cada barbero solo ve y toca las suyas, admin incluido |
 | `GET`/`PUT /api/perfil` | Sesión. Cada barbero, lo suyo (horario, precio, contraseña) |
-| `GET /api/ingresos` | Sesión. Un barbero ve lo suyo; el admin, todo o filtrado |
-| `/api/admin/*` | Solo rol `admin` |
+| `GET /api/ingresos` | Sesión. Cada barbero ve solo lo suyo, admin incluido |
+| `/api/admin/*` | Solo rol `admin`. Gestiona barberos; no devuelve citas ni dinero |
 | `/admin/*` | Sesión (menos `/admin/login`) |
 
 Sin sesión válida, las rutas de API responden `401` en JSON y las páginas

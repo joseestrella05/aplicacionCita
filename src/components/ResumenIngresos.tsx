@@ -46,12 +46,10 @@ function Tarjeta({ titulo, periodo }: { titulo: string; periodo: Periodo }) {
   );
 }
 
+// Siempre son los ingresos del barbero en sesión: la API no acepta otro.
 export default function ResumenIngresos({
-  barberoId,
   recargar,
 }: {
-  /** Solo lo manda el admin cuando filtra por un barbero. */
-  barberoId?: string;
   /** Cambia cuando se registra un cobro, para volver a pedir los totales. */
   recargar: number;
 }) {
@@ -63,8 +61,7 @@ export default function ResumenIngresos({
 
     (async () => {
       try {
-        const query = barberoId ? `?barberoId=${barberoId}` : "";
-        const res = await fetch(`/api/ingresos${query}`);
+        const res = await fetch("/api/ingresos");
         const data = await res.json();
         if (!vigente) return;
         if (!res.ok) {
@@ -81,7 +78,7 @@ export default function ResumenIngresos({
     return () => {
       vigente = false;
     };
-  }, [barberoId, recargar]);
+  }, [recargar]);
 
   if (error) {
     return (

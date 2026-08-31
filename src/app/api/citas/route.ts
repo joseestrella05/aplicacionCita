@@ -43,8 +43,9 @@ function minutosDe(hora: string): number {
 }
 
 /**
- * Un barbero solo ve sus citas. El admin las ve todas, o las de uno con
- * ?barberoId=. El filtro no es opcional: se aplica siempre en el WHERE.
+ * Cada barbero ve solo sus citas. Ser admin no cambia nada aquí: el rol sirve
+ * para gestionar barberos, no para mirar la agenda ajena. El filtro va siempre
+ * en el WHERE, así que un ?barberoId= de otro no devuelve nada.
  */
 export async function GET(request: NextRequest) {
   const sesion = await sesionActual();
@@ -56,17 +57,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const fecha = searchParams.get("fecha");
   const estado = searchParams.get("estado");
-  const barberoIdPedido = searchParams.get("barberoId");
 
-  const condiciones = [];
-
-  if (sesion.rol === "admin") {
-    if (barberoIdPedido) {
-      condiciones.push(eq(citas.barberoId, Number(barberoIdPedido)));
-    }
-  } else {
-    condiciones.push(eq(citas.barberoId, sesion.barberoId));
-  }
+  const condiciones = [eq(citas.barberoId, sesion.barberoId)];
 
   if (fecha && FORMATO_FECHA.test(fecha)) {
     condiciones.push(eq(citas.fecha, fecha));
@@ -79,8 +71,6 @@ export async function GET(request: NextRequest) {
   const consulta = db
     .select({
       id: citas.id,
-      barberoId: citas.barberoId,
-      barberoNombre: barberos.nombre,
       nombreCliente: citas.nombreCliente,
       telefono: citas.telefono,
       fecha: citas.fecha,
@@ -91,15 +81,9 @@ export async function GET(request: NextRequest) {
       creadoEn: citas.creadoEn,
     })
     .from(citas)
-    .innerJoin(barberos, eq(citas.barberoId, barberos.id))
     .orderBy(desc(citas.fecha), desc(citas.hora));
 
-  const resultados =
-    condiciones.length > 0
-      ? await consulta.where(and(...condiciones))
-      : await consulta;
-
-  return NextResponse.json(resultados);
+  return NextResponse.json(await consulta.where(and(...condiciones)));
 }
 
 /** Pública: es como reservan los clientes. */
@@ -242,8 +226,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Esa cita no existe" }, { status: 404 });
   }
 
-  // Un barbero no puede tocar las citas de otro.
-  if (sesion.rol !== "admin" && cita.barberoId !== sesion.barberoId) {
+  // Nadie toca las citas de otro, ni siquiera un admin.
+  if (cita.barberoId !== sesion.barberoId) {
     return NextResponse.json({ error: "Esa cita no es tuya" }, { status: 403 });
   }
 

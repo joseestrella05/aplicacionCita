@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { citas } from "@/db/schema";
 import { and, eq, gte, lte, isNotNull, isNull } from "drizzle-orm";
@@ -53,30 +53,24 @@ function resumir(cobros: Cobro[], rango: Rango): Resumen {
 }
 
 /**
- * Cuánto se ganó hoy, esta semana y este mes. Un barbero ve lo suyo; el admin
- * ve el total o el de un barbero con ?barberoId=.
+ * Cuánto ganó hoy, esta semana y este mes el barbero que está en sesión.
+ *
+ * Lo que factura cada quien es suyo y de nadie más: ser admin no da acceso al
+ * dinero ajeno. El filtro por barbero_id va siempre en el WHERE, no hay
+ * parámetro que lo cambie.
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   const sesion = await sesionActual();
 
   if (!sesion) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const barberoIdPedido = request.nextUrl.searchParams.get("barberoId");
-
   const condiciones = [
+    eq(citas.barberoId, sesion.barberoId),
     eq(citas.estado, "completada"),
     isNotNull(citas.montoCobrado),
   ];
-
-  if (sesion.rol === "admin") {
-    if (barberoIdPedido) {
-      condiciones.push(eq(citas.barberoId, Number(barberoIdPedido)));
-    }
-  } else {
-    condiciones.push(eq(citas.barberoId, sesion.barberoId));
-  }
 
   const hoy = fechaEnRD();
   const mes = rangoMes(hoy);
@@ -102,17 +96,16 @@ export async function GET(request: NextRequest) {
 
   // Citas dadas por completadas a las que nadie les puso el monto: se avisan
   // aparte para que un total bajo no parezca un mal día.
-  const sinCobrarCond = [eq(citas.estado, "completada"), isNull(citas.montoCobrado)];
-  if (sesion.rol === "admin") {
-    if (barberoIdPedido) sinCobrarCond.push(eq(citas.barberoId, Number(barberoIdPedido)));
-  } else {
-    sinCobrarCond.push(eq(citas.barberoId, sesion.barberoId));
-  }
-
   const sinCobrar = await db
     .select({ id: citas.id })
     .from(citas)
-    .where(and(...sinCobrarCond));
+    .where(
+      and(
+        eq(citas.barberoId, sesion.barberoId),
+        eq(citas.estado, "completada"),
+        isNull(citas.montoCobrado)
+      )
+    );
 
   const porDia = [];
   for (let i = 0; i < DIAS_DESGLOSE; i++) {

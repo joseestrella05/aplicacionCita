@@ -24,7 +24,11 @@ function esSlugRepetido(error: unknown): boolean {
   return false;
 }
 
-/** Todos los barberos, activos o no. Nunca se devuelve el hash. */
+/**
+ * Todos los barberos, activos o no. Nunca se devuelve el hash de la
+ * contraseña ni nada de dinero: un admin gestiona barberos, no mira lo que
+ * factura nadie.
+ */
 export async function GET() {
   if (!(await exigirAdmin())) {
     return NextResponse.json({ error: "Solo para el administrador" }, { status: 403 });
@@ -42,7 +46,6 @@ export async function GET() {
       horaInicio: b.horaInicio,
       horaFin: b.horaFin,
       duracionCita: b.duracionCita,
-      precioPela: b.precioPela,
       diasLaborales: parsearDias(b.diasLaborales),
       tienePassword: b.passwordHash !== "",
     }))
