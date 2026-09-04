@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { NOMBRES_DIAS, generarHoras } from "@/lib/horario";
+import {
+  NOMBRES_DIAS,
+  generarHoras,
+  ALMUERZO_INICIO,
+  ALMUERZO_FIN,
+} from "@/lib/horario";
 import { formatearPesos } from "@/lib/dinero";
 
 export interface PerfilHorario {
@@ -153,6 +158,11 @@ export default function ScheduleConfig({ inicial }: { inicial: PerfilHorario }) 
         {cupos.length === 0
           ? "Con este horario no cabe ninguna cita."
           : `${cupos.length} cupos por día: de ${cupos[0]} a ${cupos[cupos.length - 1]}.`}
+      </p>
+
+      <p className="text-zinc-500 text-xs mt-1">
+        De {ALMUERZO_INICIO} a {ALMUERZO_FIN} es el almuerzo: no se dan citas y
+        los cupos que caigan ahí no aparecen.
       </p>
 
       {error && (

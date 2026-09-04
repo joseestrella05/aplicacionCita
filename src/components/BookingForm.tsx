@@ -7,6 +7,8 @@ import {
   generarHoras,
   esDiaLaboral,
   NOMBRES_DIAS,
+  ALMUERZO_INICIO,
+  ALMUERZO_FIN,
   type Horario,
 } from "@/lib/horario";
 
@@ -205,6 +207,9 @@ export default function BookingForm({
           <label className="block text-sm font-medium text-zinc-300 mb-2">
             Hora disponible
           </label>
+          <p className="text-zinc-500 text-xs mb-2">
+            De {ALMUERZO_INICIO} a {ALMUERZO_FIN} es la hora de almuerzo.
+          </p>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {horasDisponibles.map((h) => {
               const ocupada = horasOcupadas.includes(h);

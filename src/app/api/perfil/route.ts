@@ -59,7 +59,10 @@ export async function PUT(request: NextRequest) {
     }
     if (generarHoras(inicio, fin, duracion).length === 0) {
       return NextResponse.json(
-        { error: "Con ese horario no cabe ninguna cita. Revisa la hora de cierre o la duración." },
+        {
+          error:
+            "Con ese horario no cabe ninguna cita fuera del almuerzo. Revisa la hora de cierre o la duración.",
+        },
         { status: 400 }
       );
     }
